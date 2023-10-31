@@ -1,0 +1,29 @@
+kind: pipeline
+name: build, push and deploy staging
+
+trigger:
+  branch:
+    - main
+  event:
+    - push
+
+type: docker
+
+steps:
+  - name: prepare build
+    image: alpine
+    commands:
+      - echo -n "$DRONE_COMMIT" > .tags
+
+  - name: publish docker image
+    image: plugins/ecr
+    settings:
+      access_key:
+        from_secret: aws_access_key_id
+      secret_key:
+        from_secret: aws_secret_access_key
+      repo: muse-cron
+      registry: 197742810400.dkr.ecr.us-east-2.amazonaws.com
+      region: us-east-2
+      build_args:
+        - APP_VERSION=${DRONE_COMMIT_SHA:0:8}
