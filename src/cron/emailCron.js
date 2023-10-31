@@ -12,14 +12,9 @@ const SIZE = 100;
 const DELAY = 70;
 
 const sendRoundUpEmails = async () => {
-  // check if it is 7pm PT, because cron uses utc timezone
-  if (dayjs().tz('America/Los_Angeles').startOf('hour').hour() !== 19) {
-    return;
-  }
-
   const date = dayjs().startOf('hour');
-  const from = date.subtract(7, 'day').unix();
-  const to = date.add(14, 'day').unix();
+  const from = date.subtract(7, 'day').format('YYYY-MM-DD HH:mm:ss');
+  const to = date.add(14, 'day').format('YYYY-MM-DD HH:mm:ss');
   const count = await profileRepository.count();
   const pages = getTotalPages(count, SIZE);
   const queue = asyncQueue(async data => {
@@ -28,7 +23,7 @@ const sendRoundUpEmails = async () => {
     const text = generateRoundUp(data);
     const command = new SendEmailCommand({
       FromEmailAddress: process.env.FROM_EMAIL,
-      Destination: { ToAddresses: ['anton.luhavy@yellow.systems'] },
+      Destination: { ToAddresses: [data.user.email] },
       Content: {
         Simple: {
           Subject: { Data: 'Weekly Round-Up', Charset: 'UTF-8' },
@@ -90,12 +85,13 @@ const createFriendRoundUpDate = async (from, to, limit, offset) => {
 const getName = (data) => `${data.name}${data.lastName ? ` ${data.lastName}` : ''}`;
 
 const roundUpTask = cron.schedule(
-  '0 0 2,3 * * 1',
+  '0 0 19 * * 0',
   sendRoundUpEmails,
-  { scheduled: false },
+  { scheduled: false, timezone: 'America/Los_Angeles' },
 );
 
 module.exports = {
   start: () => roundUpTask.start(),
+  stop: () => roundUpTask.stop(),
   sendRoundUpEmails,
 };

@@ -1,7 +1,7 @@
 const { sequelize } = require('../config/db');
 const { QueryTypes } = require('sequelize');
 
-const findAllMostAdded = async (from, page, size) => {
+const getAllMostAdded = async (from, page, size) => {
   const offset = (page - 1) * size;
   return sequelize.query(
     `SELECT i.id, i.name
@@ -26,7 +26,7 @@ const findAllMostAdded = async (from, page, size) => {
 };
 
 const countRefs = async (itemId, from) => {
-  const count = sequelize.query(
+  const count = await sequelize.query(
     `SELECT count(*) AS cnt
      FROM items i
      WHERE i.refId = :itemId
@@ -44,6 +44,6 @@ const countRefs = async (itemId, from) => {
 };
 
 module.exports = {
-  findAllMostAdded,
+  getAllMostAdded,
   countRefs,
 };

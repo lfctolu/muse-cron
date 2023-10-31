@@ -8,6 +8,7 @@ const getAllForPushFriend = async ({ from, to, count, limit, offset, transaction
               JOIN profiles p ON utu.userId = p.id
      WHERE p.createdAt <= :to
        AND p.createdAt > :from
+       AND p.playerID IS NOT NULL
      GROUP BY utu.userId
      HAVING count(utu.friendId) < :count
      ORDER BY utu.userId LIMIT :limit
@@ -27,6 +28,7 @@ const countForPushFriend = async ({ from, to, count }) => {
                     JOIN profiles p ON utu.userId = p.id
            WHERE p.createdAt <= :to
              AND p.createdAt > :from
+             AND p.playerID IS NOT NULL
            GROUP BY utu.userId
            HAVING count(utu.friendId) < :count) AS res`,
     {
@@ -58,11 +60,12 @@ const countAllFriends = async (userIds) => {
 const getFriendPlayerIds = async (usedIds, limit, offset) => {
   const ids = usedIds?.length ? usedIds : null;
   return sequelize.query(
-    `SELECT userId, p.playerID
+    `SELECT utu.userId, p.playerID
      FROM usersToUsers utu
               JOIN profiles p ON utu.friendId = p.id
-     WHERE userId IN (:ids)
-     ORDER BY userId, friendId LIMIT :limit
+     WHERE utu.userId IN (:ids)
+       AND p.playerID IS NOT NULL
+     ORDER BY utu.userId, utu.friendId LIMIT :limit
      OFFSET :offset`,
     {
       replacements: { ids, limit, offset },
@@ -78,6 +81,7 @@ const countForPushTrending = async (from, to) => {
               LEFT JOIN items i ON p.id = i.userId
      WHERE p.createdAt > :from
        AND p.createdAt <= :to
+       AND p.playerID IS NOT NULL
        AND i.id IS NULL`,
     {
       replacements: { from, to },
@@ -95,6 +99,7 @@ const getAllForPushTrending = ({ from, to, limit, offset, transaction }) =>
      FROM profiles p
               LEFT JOIN items i ON p.id = i.userId
      WHERE p.createdAt BETWEEN :from AND :to
+       AND p.playerID IS NOT NULL
        AND i.id IS NULL
      ORDER BY p.id LIMIT :limit
      OFFSET :offset`,
