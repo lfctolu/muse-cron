@@ -4,13 +4,15 @@ const express = require('express');
 const authMiddleware = require('./middleware/firebaseAuth');
 const errorHandlerMiddleware = require('./middleware/errorHandler');
 const { connection, closeDbConnection } = require('./config/db');
-const startCron = require('./cron/index');
+const cron = require('./cron/index');
 const logger = require('./util/logger');
+const router = require('./router');
 
 const app = express();
 
 app.get('/status', (req, res) => res.status(200).json({ status: 'UP' }));
 app.use('/api/v1', authMiddleware);
+app.use('/api/v1', router);
 
 app.use(errorHandlerMiddleware);
 
@@ -18,6 +20,12 @@ app.use(errorHandlerMiddleware);
 const PORT = 3000;
 
 const exitServer = async (err) => {
+  try {
+    cron.stop();
+    logger.info('[cron] cron tasks stopped');
+  } catch (err) {
+    logger.error('[cron] Cannot stop cron tasks', err);
+  }
   try {
     await closeDbConnection();
     logger.info('[db] db connection closed');
@@ -47,7 +55,7 @@ const main = async () => {
     await connection();
     app.server = app.listen(PORT, () => {
       logger.info(`Server running on port ${PORT}`);
-      startCron();
+      cron.start();
     });
   } catch (err) {
     logger.error('Cannot start server', err);
@@ -56,6 +64,12 @@ const main = async () => {
       logger.info('[db] db connection closed');
     } catch (err) {
       logger.error('[db] Cannot close db connection', err);
+    }
+    try {
+      cron.stop();
+      logger.info('[cron] cron tasks stopped');
+    } catch (err) {
+      logger.error('[cron] Cannot stop cron tasks', err);
     }
     process.exit(1);
   }

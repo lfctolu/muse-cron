@@ -21,6 +21,7 @@ const generateRoundUp = (data) => {
     <title>Weekly Round-Up</title>
 </head>
 <body>
+<img width="420" height="140" src="${process.env.IMAGES_URL}/logo.svg" alt="logo">
 <p>Hi, ${data.user.name}</p>
 <p>Here's a few things that happened in your circle this week & what's coming up:</p>
 <ul>

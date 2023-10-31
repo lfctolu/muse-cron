@@ -21,8 +21,8 @@ const TYPE = {
 
 const sendAddFriendsPushes = async () => {
   const date = dayjs().startOf('hour').subtract(1, 'month');
-  const to = date.unix();
-  const from = date.subtract(1, 'day').unix();
+  const to = dayjs().format('YYYY-MM-DD HH:mm:ss');
+  const from = date.subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss');
   const count = await profileRepository.countForPushFriend({ from, to, count: FRIEND_COUNT });
   const pages = getTotalPages(count, SIZE);
   const queue = asyncQueue(
@@ -48,8 +48,8 @@ const sendAddFriendsPushes = async () => {
 
 const sendShareWishlistPushes = async () => {
   const date = dayjs().startOf('hour').subtract(1, 'day');
-  const to = date.unix();
-  const from = date.subtract(1, 'hour').add(1, 'ms').unix();
+  const to = date.format('YYYY-MM-DD HH:mm:ss');
+  const from = date.subtract(1, 'hour').add(1, 's').format('YYYY-MM-DD HH:mm:ss');
   const count = await wishlistRepository.countForPushShare(from, to);
   const pages = getTotalPages(count, SIZE);
   const queue = asyncQueue(
@@ -73,8 +73,8 @@ const sendShareWishlistPushes = async () => {
 
 const sendFriendEventPushes = async () => {
   const date = dayjs().startOf('hour').add(14, 'day');
-  const to = date.unix();
-  const from = date.subtract(4, 'hour').unix();
+  const to = date.format('YYYY-MM-DD HH:mm:ss');
+  const from = date.subtract(4, 'hour').format('YYYY-MM-DD HH:mm:ss');
   const count = await wishlistRepository.countForPushEvent(from, to);
   const pages = getTotalPages(count, SIZE);
   const queue = asyncQueue(
@@ -98,8 +98,8 @@ const sendFriendEventPushes = async () => {
 };
 
 const sendMostAddedPushes = async () => {
-  const from = dayjs().startOf('hour').subtract(3, 'day').unix();
-  const { content: [item] } = await itemRepository.findAllMostAdded(from, 1, 1);
+  const from = dayjs().startOf('hour').subtract(3, 'day').format('YYYY-MM-DD HH:mm:ss');
+  const [item] = await itemRepository.getAllMostAdded(from, 1, 1);
 
   if (!item) {
     return;
@@ -111,13 +111,12 @@ const sendMostAddedPushes = async () => {
     `${item.name}. Saved ${count} times. We think you may like this. Check it out in the app`,
     { itemId: item.id, type: TYPE.CHECK_MOST_ADDED },
   );
-
 };
 
 const sendCheckTrendingPushes = async () => {
   const date = dayjs().startOf('hour').subtract(1, 'day');
-  const to = date.unix();
-  const from = date.subtract(1, 'hour').unix();
+  const to = date.format('YYYY-MM-DD HH:mm:ss');
+  const from = date.subtract(1, 'hour').format('YYYY-MM-DD HH:mm:ss');
   const count = await profileRepository.countForPushTrending(from, to);
   const pages = getTotalPages(count, SIZE);
   const queue = asyncQueue(
@@ -130,7 +129,9 @@ const sendCheckTrendingPushes = async () => {
     try {
       const data = await createCheckTrendingPushData({ from, to, limit: SIZE, offset: SIZE * i });
 
-      queue.push(data);
+      if (data.playerIds?.length) {
+        queue.push(data);
+      }
     } catch (err) {
       logger.error(`Error on creating ${TYPE.CHECK_TRENDING} pushes`, err);
     }
@@ -146,9 +147,11 @@ const createAddFriendsPushData = async ({ from, to, count, limit, offset }) => {
 
   return data.map(user => ({
     playerId: user.playerID,
-    text: `Get your friends & family to see your wishlist. Share your link with them: ${process.env.WEB_DOMAIN}/${user.username}`,
+    text: `Get your friends & family to see your wishlist. Share your link with them: ${process.env.WEB_DOMAIN}/${
+      encodeURIComponent(user.username)
+    }`,
     data: {
-      url: `${process.env.WEB_URL}/${user.username}`,
+      username: user.username,
       type: TYPE.ADD_FRIENDS,
     },
   }));
@@ -158,14 +161,15 @@ const createShareWishlistPushData = async ({ from, to, limit, offset }) => {
   const data = await wishlistRepository.getAllForPushShare({ from, to, limit, offset });
   const playerIdMap = await profileRepository.getPlayerIds(data.map(({ userId }) => userId));
 
-  return data.map(row => ({
-    playerId: playerIdMap.get(row.userId),
-    text: `Hey, here’s a link to your wishlist ${row.name}, share to your friends for surprises!`,
-    data: {
-      wishlistId: row.id,
-      type: TYPE.SHARE_WISHLIST,
-    },
-  }));
+  return data.filter(row => playerIdMap.get(row.userId))
+    .map(row => ({
+      playerId: playerIdMap.get(row.userId),
+      text: `Hey, here’s a link to your wishlist ${row.name}, share to your friends for surprises!`,
+      data: {
+        wishlistId: row.id,
+        type: TYPE.SHARE_WISHLIST,
+      },
+    }));
 };
 
 const createFriendEventPushData = async ({ from, to, limit, offset }) => {
@@ -187,19 +191,21 @@ const createFriendEventPushData = async ({ from, to, limit, offset }) => {
   userNameMap.forEach(({ name, lastName }, key) =>
     userNameMap.set(key, `${name}${lastName ? ` ${lastName}` : ''}`));
 
-  return data.map(row => ({
-    playerIds: idMap.get(row.userId),
-    text: `Hey, ${userNameMap.get(row.userId)} has an event in 14 days, see what’s on their wishlist`,
-    data: {
-      wishlistId: row.id,
-      type: TYPE.FRIEND_EVENT,
-    },
-  })).reduce((prev, curr) => {
-    chunk(curr.playerIds, 2000)
-      .forEach(ids => prev.push({ ...curr, playerIds: ids }));
+  return data.filter(row => idMap.get(row.userId)?.length)
+    .map(row => ({
+      playerIds: idMap.get(row.userId),
+      text: `Hey, ${userNameMap.get(row.userId)} has an event in 14 days, see what’s on their wishlist`,
+      data: {
+        wishlistId: row.id,
+        type: TYPE.FRIEND_EVENT,
+      },
+    }))
+    .reduce((prev, curr) => {
+      chunk(curr.playerIds, 2000)
+        .forEach(ids => prev.push({ ...curr, playerIds: ids }));
 
-    return prev;
-  }, []);
+      return prev;
+    }, []);
 };
 
 const createCheckTrendingPushData = async ({ from, to, limit, offset }) => {
@@ -247,15 +253,24 @@ const checkTrendingTask = cron.schedule(
 );
 
 const start = () => {
-  // addFriendTask.start();
-  // shareWishlistTask.start();
-  // friendEventTask.start();
-  // mostAddedTask.start();
-  // checkTrendingTask.start();
+  addFriendTask.start();
+  shareWishlistTask.start();
+  friendEventTask.start();
+  mostAddedTask.start();
+  checkTrendingTask.start();
+};
+
+const stop = () => {
+  addFriendTask.stop();
+  shareWishlistTask.stop();
+  friendEventTask.stop();
+  mostAddedTask.stop();
+  checkTrendingTask.stop();
 };
 
 module.exports = {
   start,
+  stop,
   sendFriendEventPushes,
   sendCheckTrendingPushes,
   sendMostAddedPushes,
