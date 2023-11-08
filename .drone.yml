@@ -27,3 +27,50 @@ steps:
       region: us-east-2
       build_args:
         - APP_VERSION=${DRONE_COMMIT_SHA:0:8}
+
+  - name: deploy to dev
+    image: joshdvir/drone-ecs-deploy
+    settings:
+      cluster: muse-backend-dev
+      service: muse-cron-dev
+      image_name: 197742810400.dkr.ecr.us-east-2.amazonaws.com/muse-cron:${DRONE_COMMIT}
+      aws_region: us-east-2
+      timeout: "300"
+      max: "100"
+      min: "0"
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: aws_access_key_id
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: aws_secret_access_key
+
+---
+kind: pipeline
+name: deploy prod
+
+trigger:
+  branch:
+    - main
+  event:
+    - tag
+  ref:
+    - refs/tags/prod-*
+
+type: docker
+
+steps:
+  - name: deploy to prod
+    image: joshdvir/drone-ecs-deploy
+    settings:
+      cluster: muse-backend-prod
+      service: muse-cron-prod
+      image_name: 197742810400.dkr.ecr.us-east-2.amazonaws.com/muse-cron:${DRONE_COMMIT}
+      aws_region: us-east-2
+      timeout: "300"
+      max: "100"
+      min: "0"
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: aws_access_key_id
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: aws_secret_access_key
