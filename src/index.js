@@ -12,7 +12,7 @@ const app = express();
 
 app.get('/status', (req, res) => res.status(200).json({ status: 'UP' }));
 app.use('/api/v1', authMiddleware);
-app.use('/api/v1', router);
+app.use('/api/v1/cron', router);
 
 app.use(errorHandlerMiddleware);
 
